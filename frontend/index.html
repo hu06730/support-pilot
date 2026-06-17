@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SupportPilot — 智能技术支持</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header>
+            <h1>🛠️ SupportPilot</h1>
+            <p class="subtitle">智能技术支持 Agent — 文档问答 + 诊断工具 + MCP</p>
+        </header>
+
+        <!-- 上传区 -->
+        <div class="upload-section">
+            <label for="file-input" class="upload-btn">📄 上传文档 (PDF/TXT)</label>
+            <input type="file" id="file-input" accept=".pdf,.txt,.md" hidden>
+            <span id="upload-status"></span>
+        </div>
+
+        <!-- 对话区 -->
+        <div class="chat-section">
+            <div id="chat-history" class="chat-history">
+                <div class="message system">
+                    <div class="content">你好！我是 SupportPilot 技术支持助手。你可以问我技术问题，我会先查阅文档，再用诊断工具帮你排查。</div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <textarea id="user-input" placeholder="输入你的技术问题..." rows="2"></textarea>
+                <button id="send-btn" onclick="sendMessage()">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

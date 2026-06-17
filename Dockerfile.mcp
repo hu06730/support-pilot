@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir mcp uvicorn starlette httpx
+
+COPY mcp_server/ ./mcp_server/
+
+EXPOSE 5000
+
+CMD ["python", "-m", "mcp_server.server"]

@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  # ── 后端主服务 ──
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - CHROMA_PERSIST_DIR=/app/data/chroma
+      - CHROMA_COLLECTION_NAME=${CHROMA_COLLECTION_NAME:-support_docs}
+      - MCP_SERVER_URLS=http://mcp-server:5000
+      - MCP_CONNECT_TIMEOUT=10
+      - MCP_TOOL_PREFIX=true
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - LOG_LEVEL=INFO
+    volumes:
+      - chroma_data:/app/data/chroma
+      - upload_data:/app/data/uploads
+    depends_on:
+      - mcp-server
+    restart: unless-stopped
+
+  # ── MCP Server ──
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    ports:
+      - "5000:5000"
+    environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=5000
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  upload_data:
