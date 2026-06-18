@@ -31,12 +31,12 @@ async def lifespan(app: FastAPI):
     # 2. 构建 Agent
     from app.agent.react_agent import build_agent
     try:
-        agent_executor = await build_agent(mcp_provider)
-        app.state.agent_executor = agent_executor
+        agent_graph = await build_agent(mcp_provider)
+        app.state.agent = agent_graph
         logger.info("Agent 初始化完成")
     except Exception as e:
         logger.error("Agent 构建失败: %s", e)
-        app.state.agent_executor = None
+        app.state.agent = None
 
     logger.info("=== SupportPilot 启动完成 ===")
 
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 
     # 关闭清理
     logger.info("=== SupportPilot 关闭中 ===")
-    mcp_provider.invalidate_cache()
+    await mcp_provider.shutdown()
 
 
 # ── 创建 FastAPI 实例 ──

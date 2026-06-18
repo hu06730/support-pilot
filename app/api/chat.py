@@ -18,9 +18,9 @@ router = APIRouter()
 @router.post("/chat")
 async def chat(request: Request, body: ChatRequest):
     """SSE 流式对话接口。"""
-    # 从 app state 获取 agent executor
-    agent_executor = request.app.state.agent_executor
-    if agent_executor is None:
+    # 从 app state 获取 agent（LangGraph CompiledStateGraph）
+    agent = request.app.state.agent
+    if agent is None:
         return StreamingResponse(
             iter([sse_event("error", {"message": "Agent 未初始化"})]),
             media_type="text/event-stream",
@@ -30,7 +30,7 @@ async def chat(request: Request, body: ChatRequest):
 
     async def event_generator():
         try:
-            async for event in stream_agent_run(agent_executor, body.message):
+            async for event in stream_agent_run(agent, body.message):
                 yield sse_event(event["event"], event["data"])
         except Exception as e:
             logger.error("对话流异常: %s", e)
