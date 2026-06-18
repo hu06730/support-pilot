@@ -31,6 +31,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Worklog (个人进度记录，不提交)
+.worklog/
+
 # OS
 .DS_Store
 Thumbs.db
