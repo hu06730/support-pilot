@@ -1,10 +1,10 @@
-"""RAG 文档检索工具 — 包装为 LangChain Tool。"""
+"""RAG 文档检索工具 — 使用混合检索（向量 + BM25 + RRF）。"""
 
 from __future__ import annotations
 
 from langchain_core.tools import tool
 
-from app.rag.vectorstore import get_retriever
+from app.rag.hybrid_retriever import hybrid_search
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -12,9 +12,9 @@ logger = get_logger(__name__)
 
 @tool
 def document_search(query: str) -> str:
-    """从技术文档库中检索与问题相关的文档片段。当用户提问涉及技术问题时，优先调用此工具查找文档。"""
-    retriever = get_retriever()
-    docs = retriever.invoke(query)
+    """从技术文档库中检索与问题相关的文档片段。
+    使用混合检索（向量语义 + BM25关键词），当用户提问涉及技术问题时，优先调用此工具。"""
+    docs = hybrid_search(query)
 
     if not docs:
         return "未找到相关文档片段。"
@@ -29,5 +29,4 @@ def document_search(query: str) -> str:
     return "\n\n---\n\n".join(results)
 
 
-# 导出
 RAG_TOOLS = [document_search]
