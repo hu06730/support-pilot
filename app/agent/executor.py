@@ -1,10 +1,10 @@
-"""Agent 执行器 — 适配 LangGraph create_agent 返回的 CompiledStateGraph。"""
+"""Agent 执行器 — 支持 token 级流式输出 + 对话历史。"""
 
 from __future__ import annotations
 
 from typing import Any, AsyncGenerator
 
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk
 
 from app.utils.logger import get_logger
 
@@ -26,46 +26,58 @@ def _extract_tool_calls(ai_msg: AIMessage) -> list[dict]:
 async def stream_agent_run(
     agent,
     user_message: str,
+    history: list[BaseMessage] | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
-    """流式执行 Agent，yield 每一步的事件。
+    """流式执行 Agent，支持 token 级输出。
 
     事件格式:
-    - {"event": "action", "data": {"tool": ..., "input": ...}}
-    - {"event": "observation", "data": {"output": ...}}
-    - {"event": "answer", "data": {"output": ...}}
-    - {"event": "error", "data": {"message": ...}}
+    - {"event": "token", "data": {"content": "..."}}         # LLM 逐 token
+    - {"event": "action", "data": {"tool": ..., "input": ...}}  # 工具调用
+    - {"event": "observation", "data": {"output": ...}}        # 工具结果
+    - {"event": "answer", "data": {"output": ...}}             # 最终回答
+    - {"event": "error", "data": {"message": ...}}             # 错误
     """
-    input_msg = {"messages": [HumanMessage(content=user_message)]}
+    messages: list[BaseMessage] = list(history or [])
+    messages.append(HumanMessage(content=user_message))
+    input_msg = {"messages": messages}
+
     final_answer = None
 
     try:
-        # 使用 astream 获取每一步的更新
-        async for event in agent.astream(input_msg, stream_mode="updates"):
-            for node_name, node_output in event.items():
-                if node_name in ("__start__", "__end__"):
-                    continue
+        # 使用 astream_events 获取 token 级流式输出
+        async for event in agent.astream_events(input_msg, version="v2"):
+            kind = event.get("event", "")
 
-                messages = node_output.get("messages", [])
-                for msg in messages:
-                    if isinstance(msg, AIMessage):
-                        tool_calls = _extract_tool_calls(msg)
-                        if tool_calls:
-                            for tc in tool_calls:
-                                yield {
-                                    "event": "action",
-                                    "data": {
-                                        "tool": tc["tool"],
-                                        "input": tc["input"],
-                                    },
-                                }
-                        elif msg.content:
-                            final_answer = msg.content
+            # LLM 生成的 token
+            if kind == "on_chat_model_stream":
+                chunk = event.get("data", {}).get("chunk")
+                if isinstance(chunk, AIMessageChunk) and chunk.content:
+                    yield {"event": "token", "data": {"content": chunk.content}}
 
-                    elif isinstance(msg, ToolMessage):
-                        yield {
-                            "event": "observation",
-                            "data": {"output": msg.content},
-                        }
+            # 工具调用开始
+            elif kind == "on_tool_start":
+                tool_name = event.get("name", "unknown")
+                tool_input = event.get("data", {}).get("input", {})
+                yield {
+                    "event": "action",
+                    "data": {"tool": tool_name, "input": tool_input},
+                }
+
+            # 工具调用结束
+            elif kind == "on_tool_end":
+                output = event.get("data", {}).get("output", "")
+                if isinstance(output, str):
+                    yield {"event": "observation", "data": {"output": output}}
+                elif isinstance(output, list):
+                    # MCP 工具返回格式
+                    text_parts = [item.get("text", "") for item in output if isinstance(item, dict)]
+                    yield {"event": "observation", "data": {"output": "\n".join(text_parts)}}
+
+            # 完整的 AIMessage（用于提取最终回答）
+            elif kind == "on_chat_model_end":
+                msg = event.get("data", {}).get("output")
+                if isinstance(msg, AIMessage) and msg.content and not _extract_tool_calls(msg):
+                    final_answer = msg.content
 
     except Exception as e:
         logger.error("Agent 流式执行异常: %s", e)
@@ -76,7 +88,6 @@ async def stream_agent_run(
     if final_answer:
         yield {"event": "answer", "data": {"output": final_answer}}
     else:
-        # 兜底：重新调用一次取最终结果
         try:
             result = await agent.ainvoke(input_msg)
             last_messages = result.get("messages", [])

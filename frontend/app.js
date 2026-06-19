@@ -1,5 +1,5 @@
 /**
- * SupportPilot 前端 — SSE 流式对话 + 文件上传
+ * SupportPilot 前端 — SSE token 级流式对话 + 文件上传
  */
 
 const chatHistory = document.getElementById("chat-history");
@@ -8,29 +8,32 @@ const sendBtn = document.getElementById("send-btn");
 const fileInput = document.getElementById("file-input");
 const uploadStatus = document.getElementById("upload-status");
 
+// 会话 ID（随机生成，刷新页面重置）
+const sessionId = "session-" + Math.random().toString(36).slice(2, 10);
+
+// 当前流式输出的元素
+let streamingDiv = null;
+
 // ── 发送消息 ──
 
 async function sendMessage() {
     const message = userInput.value.trim();
     if (!message) return;
 
-    // 显示用户消息
     appendMessage("user", message);
     userInput.value = "";
     sendBtn.disabled = true;
+    streamingDiv = null; // 重置流式输出
 
     try {
         const response = await fetch("/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, session_id: sessionId }),
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        // 读取 SSE 流
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -41,15 +44,14 @@ async function sendMessage() {
 
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
-            buffer = lines.pop(); // 保留不完整的行
+            buffer = lines.pop();
 
             let currentEvent = "";
             for (const line of lines) {
                 if (line.startsWith("event: ")) {
                     currentEvent = line.slice(7).trim();
                 } else if (line.startsWith("data: ")) {
-                    const dataStr = line.slice(6);
-                    handleSSEEvent(currentEvent, dataStr);
+                    handleSSEEvent(currentEvent, line.slice(6));
                 }
             }
         }
@@ -57,6 +59,7 @@ async function sendMessage() {
         appendMessage("error", `请求失败: ${err.message}`);
     } finally {
         sendBtn.disabled = false;
+        streamingDiv = null;
     }
 }
 
@@ -64,32 +67,50 @@ async function sendMessage() {
 
 function handleSSEEvent(event, dataStr) {
     let data;
-    try {
-        data = JSON.parse(dataStr);
-    } catch {
-        data = { output: dataStr };
-    }
+    try { data = JSON.parse(dataStr); } catch { data = { output: dataStr }; }
 
     switch (event) {
+        case "token":
+            // token 级流式：逐字追加到当前流式 div
+            if (!streamingDiv) {
+                streamingDiv = appendMessage("assistant", "");
+            }
+            streamingDiv.textContent += data.content;
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            break;
+
         case "action":
+            closeStreamingDiv();
             appendMessage("action", `🔧 调用工具: ${data.tool}\n输入: ${typeof data.input === "object" ? JSON.stringify(data.input) : data.input}`);
             break;
+
         case "observation":
             appendMessage("observation", `📋 工具结果:\n${truncate(data.output, 500)}`);
             break;
+
         case "answer":
-            appendMessage("assistant", data.output);
+            // 最终回答（如果有 token 流式则覆盖为空，否则显示）
+            if (!streamingDiv || streamingDiv.textContent.trim() === "") {
+                closeStreamingDiv();
+                appendMessage("assistant", data.output);
+            } else {
+                closeStreamingDiv();
+            }
             break;
+
         case "error":
+            closeStreamingDiv();
             appendMessage("error", `❌ 错误: ${data.message || dataStr}`);
             break;
+
         case "done":
-            // 对话结束
-            break;
-        default:
-            // 忽略未知事件
+            closeStreamingDiv();
             break;
     }
+}
+
+function closeStreamingDiv() {
+    streamingDiv = null;
 }
 
 // ── DOM 操作 ──
@@ -100,6 +121,7 @@ function appendMessage(type, content) {
     div.textContent = content;
     chatHistory.appendChild(div);
     chatHistory.scrollTop = chatHistory.scrollHeight;
+    return div;
 }
 
 function truncate(str, maxLen) {
