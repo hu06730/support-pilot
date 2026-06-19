@@ -16,5 +16,7 @@ def get_embeddings() -> OpenAIEmbeddings:
         _embeddings_instance = OpenAIEmbeddings(
             model=settings.embedding_model,
             openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_base_url,
+            check_embedding_ctx_length=False,  # 兼容百炼等非标准 API
         )
     return _embeddings_instance

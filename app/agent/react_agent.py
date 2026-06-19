@@ -33,6 +33,7 @@ async def build_agent(mcp_provider: MCPProvider):
     llm = ChatOpenAI(
         model=settings.openai_model,
         openai_api_key=settings.openai_api_key,
+        openai_api_base=settings.openai_base_url,
         temperature=0,
         streaming=True,
     )
