@@ -18,5 +18,6 @@ def get_embeddings() -> OpenAIEmbeddings:
             openai_api_key=settings.openai_api_key,
             openai_api_base=settings.openai_base_url,
             check_embedding_ctx_length=False,  # 兼容百炼等非标准 API
+            chunk_size=10,  # 百炼 API 批量上限 10 条
         )
     return _embeddings_instance
