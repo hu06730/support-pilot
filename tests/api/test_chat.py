@@ -19,7 +19,7 @@ class TestChatEndpoint:
             mock_build.return_value = mock_executor
 
             from app.main import app
-            app.state.agent_executor = mock_executor
+            app.state.agent = mock_executor
 
             client = TestClient(app)
             resp = client.post(
