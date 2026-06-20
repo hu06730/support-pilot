@@ -1,8 +1,7 @@
 """上传接口测试。"""
 
 import os
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

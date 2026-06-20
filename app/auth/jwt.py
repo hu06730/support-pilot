@@ -6,7 +6,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt, JWTError
+from jose import jwt
 
 # JWT 配置
 SECRET_KEY = "support-pilot-secret-key-change-in-production"

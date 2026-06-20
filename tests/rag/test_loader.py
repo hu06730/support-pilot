@@ -1,6 +1,5 @@
 """文档加载 & 分块测试。"""
 
-from pathlib import Path
 
 from app.rag.loader import load_document, split_documents, load_and_split
 

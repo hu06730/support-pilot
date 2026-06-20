@@ -5,17 +5,23 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# 项目根目录
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.auth import router as auth_router
+from app.api.chat import router as chat_router
+from app.api.documents import router as documents_router
+from app.api.evaluation import router as eval_router
+from app.api.mcp import router as mcp_router
+from app.api.upload import router as upload_router
 from app.config import settings
 from app.mcp.provider import mcp_provider
 from app.utils.logger import get_logger
+
+# 项目根目录
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 logger = get_logger(__name__)
 
@@ -86,13 +92,6 @@ class TraceIDMiddleware(BaseHTTPMiddleware):
 app.add_middleware(TraceIDMiddleware)
 
 # 挂载路由
-from app.api.chat import router as chat_router
-from app.api.upload import router as upload_router
-from app.api.documents import router as documents_router
-from app.api.mcp import router as mcp_router
-from app.api.auth import router as auth_router
-from app.api.evaluation import router as eval_router
-
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(eval_router, tags=["evaluation"])
 app.include_router(chat_router, tags=["chat"])

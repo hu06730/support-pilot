@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import uuid
 from pathlib import Path
 
@@ -45,7 +44,7 @@ async def upload_document(file: UploadFile = File(...)):
     # 加载 → 分块 → 写入 Chroma
     try:
         chunks = load_and_split(save_path)
-        ids = add_documents(chunks)
+        add_documents(chunks)
     except Exception as e:
         logger.error("文档处理失败: %s", e)
         raise HTTPException(status_code=500, detail=f"文档处理失败: {e}")

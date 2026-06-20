@@ -1,7 +1,6 @@
 """MCPProvider 配置解析 & 工具合并测试。"""
 
 import os
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -16,7 +15,7 @@ class TestMCPProviderInit:
 
     def test_parse_multiple_urls(self):
         os.environ["MCP_SERVER_URLS"] = "http://host1:5000, http://host2:5001"
-        provider = MCPProvider()
+        _ = MCPProvider()  # noqa: F841
         # init 会尝试连接，这里只测 URL 解析逻辑
         urls = [u.strip() for u in os.environ["MCP_SERVER_URLS"].split(",") if u.strip()]
         assert len(urls) == 2

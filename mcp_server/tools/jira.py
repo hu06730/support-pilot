@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-import string
 
 
 async def create_jira_ticket(title: str, description: str, priority: str = "Medium") -> dict:

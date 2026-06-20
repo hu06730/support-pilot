@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.evaluation.evaluator import run_evaluation, print_report
+from app.evaluation.evaluator import run_evaluation
 
 router = APIRouter()
 

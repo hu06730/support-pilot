@@ -3,7 +3,6 @@
 import os
 from unittest.mock import patch, AsyncMock
 
-import pytest
 
 os.environ.setdefault("OPENAI_API_KEY", "sk-test")
 

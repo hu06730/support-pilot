@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, AsyncGenerator
 
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage, AIMessageChunk
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, AIMessageChunk
 
 from app.utils.logger import get_logger
 

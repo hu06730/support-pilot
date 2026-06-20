@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.evaluation.metrics import recall_at_k, mrr, precision_at_k
-from app.rag.hybrid_retriever import hybrid_search, vector_only_search
+from app.rag.hybrid_retriever import hybrid_search
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
