@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# 项目根目录
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -76,7 +80,8 @@ app.include_router(documents_router, tags=["documents"])
 app.include_router(mcp_router, tags=["mcp"])
 
 # 静态文件（前端）
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
+_FRONTEND_DIR = _PROJECT_ROOT / "frontend"
+app.mount("/static", StaticFiles(directory=str(_FRONTEND_DIR)), name="static")
 
 
 @app.get("/")
