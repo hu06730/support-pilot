@@ -168,3 +168,71 @@ userInput.addEventListener("keydown", (e) => {
         sendMessage();
     }
 });
+
+// ── 文档管理 ──
+
+let docPanelVisible = false;
+
+function toggleDocPanel() {
+    const panel = document.getElementById("doc-panel");
+    docPanelVisible = !docPanelVisible;
+    panel.style.display = docPanelVisible ? "block" : "none";
+    if (docPanelVisible) loadDocuments();
+}
+
+async function loadDocuments() {
+    const list = document.getElementById("doc-list");
+    list.innerHTML = '<div class="doc-empty">加载中...</div>';
+
+    try {
+        const resp = await fetch("/documents");
+        const data = await resp.json();
+
+        if (!data.documents || data.documents.length === 0) {
+            list.innerHTML = '<div class="doc-empty">暂无文档，请上传</div>';
+            return;
+        }
+
+        list.innerHTML = data.documents.map(doc => `
+            <div class="doc-item">
+                <span class="doc-name" title="${doc.source}">📄 ${doc.filename}</span>
+                <span class="doc-meta">${doc.chunks} 块</span>
+                <button class="doc-delete" onclick="deleteDocument('${doc.doc_id}')" title="删除">🗑️</button>
+            </div>
+        `).join("");
+    } catch (err) {
+        list.innerHTML = `<div class="doc-empty">加载失败: ${err.message}</div>`;
+    }
+}
+
+async function deleteDocument(docId) {
+    if (!confirm(`确定删除文档 ${docId}？`)) return;
+
+    try {
+        const resp = await fetch(`/documents/${docId}`, { method: "DELETE" });
+        const data = await resp.json();
+
+        if (resp.ok) {
+            loadDocuments(); // 刷新列表
+        } else {
+            alert(`删除失败: ${data.detail || "未知错误"}`);
+        }
+    } catch (err) {
+        alert(`删除失败: ${err.message}`);
+    }
+}
+
+// ── 历史管理 ──
+
+async function clearHistory() {
+    if (!confirm("确定清除当前对话历史？")) return;
+
+    try {
+        await fetch(`/history/${sessionId}`, { method: "DELETE" });
+        // 清空前端聊天区域（保留系统消息）
+        const messages = chatHistory.querySelectorAll(".message:not(.system)");
+        messages.forEach(m => m.remove());
+    } catch (err) {
+        alert(`清除失败: ${err.message}`);
+    }
+}

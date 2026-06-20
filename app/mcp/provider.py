@@ -1,6 +1,8 @@
-"""MCPProvider — 基于 MultiServerMCPClient，配置驱动，支持多 MCP Server。"""
+"""MCPProvider — 支持延迟加载 + 自动重连。"""
 
 from __future__ import annotations
+
+import asyncio
 
 import httpx
 from langchain_core.tools import BaseTool
@@ -14,15 +16,17 @@ logger = get_logger(__name__)
 
 
 class MCPProvider:
-    """管理多个 MCP Server 连接，提供统一的工具获取接口。"""
+    """管理多个 MCP Server 连接，支持延迟加载和自动重连。"""
 
     def __init__(self):
         self._client: MultiServerMCPClient | None = None
         self._tools_cache: list[BaseTool] | None = None
         self._server_urls: dict[str, str] = {}
+        self._connected: bool = False
+        self._retry_task: asyncio.Task | None = None
 
     async def init(self) -> None:
-        """启动时调用：解析 MCP_SERVER_URLS，建立连接并加载工具。"""
+        """启动时调用：解析 MCP_SERVER_URLS，尝试连接。"""
         urls = [u.strip() for u in settings.mcp_server_urls.split(",") if u.strip()]
         if not urls:
             logger.info("MCPProvider: 未配置 MCP_SERVER_URLS，跳过")
@@ -33,43 +37,86 @@ class MCPProvider:
             self._server_urls[server_id] = url
             logger.info("MCPProvider: 注册 server [%s] → %s", server_id, url)
 
+        # 尝试首次连接（不阻塞启动）
+        await self._try_connect()
+
+        # 启动后台重连任务（如果首次连接失败）
+        if not self._connected:
+            self._retry_task = asyncio.create_task(self._background_retry())
+
+    async def _try_connect(self) -> bool:
+        """尝试连接 MCP Server 并加载工具。"""
+        if not self._server_urls:
+            return False
+
         self._client = create_mcp_client(
             server_urls=self._server_urls,
             timeout=settings.mcp_connect_timeout,
             tool_name_prefix=settings.mcp_tool_prefix,
         )
 
-        await self._load_tools()
-
-    async def _load_tools(self) -> None:
-        """通过 MultiServerMCPClient 加载所有工具。"""
-        if self._client is None:
-            return
-
         try:
-            # 新版 API：直接调用 get_tools()，无需 context manager
-            tools = await self._client.get_tools()
+            tools = await asyncio.wait_for(
+                self._client.get_tools(),
+                timeout=settings.mcp_connect_timeout,
+            )
             self._tools_cache = tools
-            logger.info("MCPProvider: 共加载 %d 个 MCP 工具", len(tools))
+            self._connected = True
+            logger.info("MCPProvider: 连接成功，加载 %d 个工具", len(tools))
             for t in tools:
                 logger.info("  - %s: %s", t.name, t.description[:60])
+            return True
         except Exception as e:
-            logger.warning("MCPProvider: 加载工具失败（MCP Server 可能未启动）: %s", e)
+            logger.warning("MCPProvider: 连接失败: %s", e)
             self._tools_cache = []
+            self._connected = False
+            self._client = None
+            return False
+
+    async def _background_retry(self) -> None:
+        """后台任务：定期尝试重连 MCP Server。"""
+        retry_interval = 30  # 每 30 秒重试一次
+        max_retries = 20
+        retries = 0
+
+        while retries < max_retries and not self._connected:
+            await asyncio.sleep(retry_interval)
+            retries += 1
+            logger.info("MCPProvider: 尝试重连 (%d/%d)...", retries, max_retries)
+            if await self._try_connect():
+                logger.info("MCPProvider: 重连成功！")
+                # 重连成功后需要重建 Agent（通知上层）
+                break
+
+        if not self._connected:
+            logger.warning("MCPProvider: 重连失败，将仅使用内置工具")
 
     async def get_all_tools(self) -> list[BaseTool]:
-        """返回所有 MCP 工具（供 Agent 使用）。"""
+        """返回所有 MCP 工具。"""
         return self._tools_cache or []
+
+    def is_connected(self) -> bool:
+        """是否已连接到 MCP Server。"""
+        return self._connected
 
     def invalidate_cache(self) -> None:
         """清空缓存。"""
         self._client = None
         self._tools_cache = None
+        self._connected = False
+
+    async def reconnect(self) -> bool:
+        """手动触发重连。"""
+        self.invalidate_cache()
+        return await self._try_connect()
 
     async def shutdown(self) -> None:
         """应用关闭时调用。"""
+        if self._retry_task and not self._retry_task.done():
+            self._retry_task.cancel()
         self._client = None
         self._tools_cache = None
+        self._connected = False
         logger.info("MCPProvider: 已关闭")
 
     async def health_check(self) -> dict[str, bool]:

@@ -14,11 +14,28 @@
             <p class="subtitle">智能技术支持 Agent — 文档问答 + 诊断工具 + MCP</p>
         </header>
 
-        <!-- 上传区 -->
-        <div class="upload-section">
-            <label for="file-input" class="upload-btn">📄 上传文档 (PDF/TXT)</label>
-            <input type="file" id="file-input" accept=".pdf,.txt,.md" hidden>
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <!-- 上传 -->
+            <label for="file-input" class="upload-btn">📄 上传文档</label>
+            <input type="file" id="file-input" accept=".pdf,.txt,.md,.docx" hidden>
             <span id="upload-status"></span>
+
+            <!-- 文档管理 -->
+            <button class="tool-btn" onclick="toggleDocPanel()">📚 文档管理</button>
+            <!-- 清除历史 -->
+            <button class="tool-btn" onclick="clearHistory()">🗑️ 清除历史</button>
+        </div>
+
+        <!-- 文档管理面板（默认隐藏） -->
+        <div id="doc-panel" class="doc-panel" style="display:none;">
+            <div class="doc-panel-header">
+                <span>已上传文档</span>
+                <button class="close-btn" onclick="toggleDocPanel()">✕</button>
+            </div>
+            <div id="doc-list" class="doc-list">
+                <div class="doc-empty">暂无文档</div>
+            </div>
         </div>
 
         <!-- 对话区 -->
