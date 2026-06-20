@@ -33,6 +33,9 @@ tiktoken = ">=0.7"
 # OpenAI
 openai = ">=1.30"
 
+# 认证
+python-jose = {version = ">=3.3.0", extras = ["cryptography"]}
+
 # 辅助
 python-dotenv = ">=1.0"
 sse-starlette = ">=2.0"
