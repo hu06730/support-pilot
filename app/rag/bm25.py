@@ -20,14 +20,20 @@ class BM25Index:
 
     def __init__(self, corpus: list[str], doc_ids: list[str]):
         self.doc_ids = doc_ids
-        self._tokenized = [list(jieba.cut(text)) for text in corpus]
-        self._bm25 = BM25Okapi(self._tokenized)
+        self._empty = len(corpus) == 0
+        if not self._empty:
+            self._tokenized = [list(jieba.cut(text)) for text in corpus]
+            self._bm25 = BM25Okapi(self._tokenized)
+        else:
+            self._tokenized = []
+            self._bm25 = None
 
     def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         """返回 (doc_id, score) 列表。"""
+        if self._empty or self._bm25 is None:
+            return []
         tokens = list(jieba.cut(query))
         scores = self._bm25.get_scores(tokens)
-        # 取 top_k
         ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:top_k]
         return [(self.doc_ids[i], float(s)) for i, s in ranked if s > 0]
 
