@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.create false
+          poetry install --no-interaction --only main
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-asyncio pytest-cov ruff
+
+      - name: Lint with ruff
+        run: ruff check app/ mcp_server/ tests/ --select E,F,W --ignore E501
+
+      - name: Run tests
+        env:
+          OPENAI_API_KEY: sk-test-fake-key
+          CHROMA_PERSIST_DIR: /tmp/test_chroma
+          MCP_SERVER_URLS: ""
+        run: pytest tests/ -v --tb=short -x
