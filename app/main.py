@@ -8,9 +8,10 @@ from pathlib import Path
 # 项目根目录
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.mcp.provider import mcp_provider
@@ -68,12 +69,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# 请求 ID 中间件
+class TraceIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        from app.utils.logger import trace_id_var, generate_trace_id
+
+        trace_id = request.headers.get("X-Trace-ID") or generate_trace_id()
+        trace_id_var.set(trace_id)
+
+        response = await call_next(request)
+        response.headers["X-Trace-ID"] = trace_id
+        return response
+
+
+app.add_middleware(TraceIDMiddleware)
+
 # 挂载路由
 from app.api.chat import router as chat_router
 from app.api.upload import router as upload_router
 from app.api.documents import router as documents_router
 from app.api.mcp import router as mcp_router
+from app.api.auth import router as auth_router
 
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(chat_router, tags=["chat"])
 app.include_router(upload_router, tags=["upload"])
 app.include_router(documents_router, tags=["documents"])
