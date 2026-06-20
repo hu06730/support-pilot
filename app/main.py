@@ -91,8 +91,10 @@ from app.api.upload import router as upload_router
 from app.api.documents import router as documents_router
 from app.api.mcp import router as mcp_router
 from app.api.auth import router as auth_router
+from app.api.evaluation import router as eval_router
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(eval_router, tags=["evaluation"])
 app.include_router(chat_router, tags=["chat"])
 app.include_router(upload_router, tags=["upload"])
 app.include_router(documents_router, tags=["documents"])

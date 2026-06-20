@@ -1,4 +1,4 @@
-"""混合检索器 — 向量 + BM25 + RRF 融合。"""
+"""混合检索器 — 向量 + BM25 + RRF 融合 + Rerank。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ from langchain_core.documents import Document
 
 from app.rag.vectorstore import get_vectorstore
 from app.rag.bm25 import bm25_cache
-from app.rag.intent import classify_intent, IntentWeights
+from app.rag.intent import classify_intent
+from app.rag.reranker import keyword_rerank
 from app.config import settings
 from app.utils.logger import get_logger
 
@@ -106,9 +107,13 @@ def hybrid_search(
 
     # 排序取 top_k
     sorted_results = sorted(rrf_scores.values(), key=lambda x: x[1], reverse=True)[:k]
-    results = [doc for doc, _score in sorted_results]
+    fused_results = [doc for doc, _score in sorted_results]
 
-    logger.info("混合检索完成: 向量=%d, BM25=%d, 融合后=%d", len(vector_results), len(bm25_results), len(results))
+    # Rerank 重排序
+    results = keyword_rerank(query, fused_results, top_k=k)
+
+    logger.info("混合检索完成: 向量=%d, BM25=%d, 融合=%d, rerank后=%d",
+                len(vector_results), len(bm25_results), len(fused_results), len(results))
     return results
 
 
