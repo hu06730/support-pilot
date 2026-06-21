@@ -135,6 +135,23 @@ python -m app.main
 | `/history/{session_id}` | DELETE | 清除对话历史 |
 | `/mcp/status` | GET | MCP 连接状态 |
 | `/mcp/reconnect` | POST | 手动重连 MCP |
+| `/evaluation/run` | POST | 运行检索评估 |
+
+## 检索质量评估
+
+基于 500 条多样化测试集（12 个分类）的评估结果：
+
+| 指标 | 值 |
+|------|-----|
+| **Recall@5** | **0.7000** |
+| **MRR** | **0.6636** |
+| 关键词命中率 | 70% |
+
+**最佳分类**：页面置换 (R@5=0.967)、文件系统 (0.958)、进程通信 (0.911)
+
+**检索策略**：向量语义 + BM25 关键词 + RRF 融合 + 意图分类动态权重
+
+> 详见 [EVAL_REPORT.md](EVAL_REPORT.md)
 
 ## 项目结构
 
