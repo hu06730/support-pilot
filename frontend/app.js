@@ -14,6 +14,16 @@ const sessionId = "session-" + Math.random().toString(36).slice(2, 10);
 // 当前流式输出的元素
 let streamingDiv = null;
 
+// 智能滚动：只在用户已经在底部时自动滚动
+function isNearBottom() {
+    const threshold = 100; // 距离底部 100px 内算"在底部"
+    return chatHistory.scrollTop + chatHistory.clientHeight >= chatHistory.scrollHeight - threshold;
+}
+
+function scrollToBottom() {
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
 // ── 发送消息 ──
 
 async function sendMessage() {
@@ -76,7 +86,10 @@ function handleSSEEvent(event, dataStr) {
                 streamingDiv = appendMessage("assistant", "");
             }
             streamingDiv.textContent += data.content;
-            chatHistory.scrollTop = chatHistory.scrollHeight;
+            // 只在用户已经在底部时自动滚动，否则不干扰用户查看历史
+            if (isNearBottom()) {
+                scrollToBottom();
+            }
             break;
 
         case "action":
@@ -120,7 +133,7 @@ function appendMessage(type, content) {
     div.className = `message ${type}`;
     div.textContent = content;
     chatHistory.appendChild(div);
-    chatHistory.scrollTop = chatHistory.scrollHeight;
+    scrollToBottom();
     return div;
 }
 

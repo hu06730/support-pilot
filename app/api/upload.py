@@ -1,4 +1,4 @@
-"""文档上传接口。"""
+"""文档上传接口 — 支持去重检查。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 
 from app.config import settings
 from app.rag.loader import load_and_split
-from app.rag.vectorstore import add_documents
+from app.rag.vectorstore import add_documents, get_vectorstore
 from app.schemas.models import UploadResponse
 from app.utils.logger import get_logger
 
@@ -20,13 +20,34 @@ router = APIRouter()
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md"}
 
 
+def _check_duplicate(filename: str) -> bool:
+    """检查文件名是否已存在于 Chroma 中。"""
+    try:
+        vs = get_vectorstore()
+        results = vs._collection.get(include=["metadatas"])
+        for meta in results["metadatas"]:
+            source = meta.get("source", "")
+            if filename in Path(source).name:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(file: UploadFile = File(...)):
-    """上传文档（PDF/TXT/MD），自动向量化写入 Chroma。"""
+    """上传文档（PDF/TXT/MD），自动向量化写入 Chroma。支持去重。"""
     # 校验文件类型
     suffix = Path(file.filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"不支持的文件格式: {suffix}，仅支持 {ALLOWED_EXTENSIONS}")
+
+    # 去重检查
+    if _check_duplicate(file.filename):
+        raise HTTPException(
+            status_code=409,
+            detail=f"文档 '{file.filename}' 已存在，请勿重复上传。如需更新，请先删除旧文档。"
+        )
 
     # 保存到 uploads 目录
     upload_dir = Path(settings.chroma_persist_dir).parent / "uploads"
