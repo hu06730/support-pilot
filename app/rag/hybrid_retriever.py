@@ -1,4 +1,4 @@
-"""混合检索器 — 向量 + BM25 + RRF 融合 + Rerank。"""
+"""混合检索器 — 向量 + BM25 + RRF 融合 + Rerank + Query 扩展。"""
 
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ def hybrid_search(
     top_k: int | None = None,
     vector_weight: float | None = None,
     bm25_weight: float | None = None,
+    use_query_expansion: bool = False,
 ) -> list[Document]:
     """混合检索：向量相似度 + BM25 关键词 + RRF 融合。
 
@@ -45,11 +46,30 @@ def hybrid_search(
         top_k: 返回结果数
         vector_weight: 向量检索权重（None 则自动意图分类）
         bm25_weight: BM25 检索权重（None 则自动意图分类）
+        use_query_expansion: 是否启用 Query 扩展（异步，需要 event loop）
 
     Returns:
         融合排序后的 Document 列表
     """
     k = top_k or settings.rag_top_k
+
+    # Query 扩展（可选）
+    queries = [query]
+    if use_query_expansion:
+        try:
+            import asyncio
+            from app.rag.query_expansion import expand_query
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 已在 async 上下文中，用 sync 方式调用
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    queries = pool.submit(lambda: asyncio.run(expand_query(query, n=2))).result()
+            else:
+                queries = loop.run_until_complete(expand_query(query, n=2))
+        except Exception as e:
+            logger.warning("Query 扩展失败，使用原始查询: %s", e)
+            queries = [query]
 
     # 意图分类 → 动态权重
     if vector_weight is None or bm25_weight is None:
@@ -59,34 +79,36 @@ def hybrid_search(
     else:
         vw, bw = vector_weight, bm25_weight
 
-    # ── 向量检索 ──
+    # ── 向量检索（支持多 Query）──
     vs = get_vectorstore()
-    vector_docs = vs.similarity_search_with_relevance_scores(query, k=k * 2)
     vector_results: dict[str, tuple[Document, int]] = {}
-    for rank, (doc, _score) in enumerate(vector_docs):
-        doc_key = doc.page_content[:100]  # 用前 100 字符作为去重 key
-        vector_results[doc_key] = (doc, rank)
+    for q in queries:
+        vector_docs = vs.similarity_search_with_relevance_scores(q, k=k * 2)
+        for rank, (doc, _score) in enumerate(vector_docs):
+            doc_key = doc.page_content[:100]
+            if doc_key not in vector_results:
+                vector_results[doc_key] = (doc, rank)
 
-    # ── BM25 检索 ──
+    # ── BM25 检索（支持多 Query）──
     collection_name = settings.chroma_collection_name
     corpus, doc_ids = _build_bm25_index(collection_name)
     bm25_index = bm25_cache.get_or_build(collection_name, corpus, doc_ids)
-    bm25_hits = bm25_index.search(query, top_k=k * 2)
-
     bm25_results: dict[str, tuple[Document, int]] = {}
-    for rank, (doc_id, _score) in enumerate(bm25_hits):
-        # 从 Chroma 获取文档内容
-        try:
-            result = vs._collection.get(ids=[doc_id], include=["documents", "metadatas"])
-            if result["documents"]:
-                doc = Document(
-                    page_content=result["documents"][0],
-                    metadata=result["metadatas"][0] if result["metadatas"] else {},
-                )
-                doc_key = doc.page_content[:100]
-                bm25_results[doc_key] = (doc, rank)
-        except Exception:
-            continue
+    for q in queries:
+        bm25_hits = bm25_index.search(q, top_k=k * 2)
+        for rank, (doc_id, _score) in enumerate(bm25_hits):
+            try:
+                result = vs._collection.get(ids=[doc_id], include=["documents", "metadatas"])
+                if result["documents"]:
+                    doc = Document(
+                        page_content=result["documents"][0],
+                        metadata=result["metadatas"][0] if result["metadatas"] else {},
+                    )
+                    doc_key = doc.page_content[:100]
+                    if doc_key not in bm25_results:
+                        bm25_results[doc_key] = (doc, rank)
+            except Exception:
+                continue
 
     # ── RRF 融合 ──
     rrf_scores: dict[str, tuple[Document, float]] = {}
