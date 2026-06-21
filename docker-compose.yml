@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ── 后端主服务 ──
   backend:
@@ -22,8 +20,9 @@ services:
       - APP_PORT=8000
       - LOG_LEVEL=INFO
     volumes:
-      - chroma_data:/app/data/chroma
-      - upload_data:/app/data/uploads
+      - ./data/chroma:/app/data/chroma
+      - ./data/uploads:/app/data/uploads
+      - ./data/bm25_cache:/app/data/bm25_cache
     depends_on:
       - mcp-server
     restart: unless-stopped
@@ -44,7 +43,3 @@ services:
       - MCP_HOST=0.0.0.0
       - MCP_PORT=5000
     restart: unless-stopped
-
-volumes:
-  chroma_data:
-  upload_data:

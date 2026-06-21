@@ -9,7 +9,10 @@ venv/
 .venv/
 tests/
 data/samples/
-*.md
+.worklog/
+.github/
 .pytest_cache
 .mypy_cache
 .ruff_cache
+*.md
+!README.md
