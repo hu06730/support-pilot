@@ -29,7 +29,7 @@ class BM25Index:
 
     def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         """返回 (doc_id, score) 列表。"""
-        if self._empty or self._bm25 is None:
+        if getattr(self, '_empty', False) or self._bm25 is None:
             return []
         tokens = list(jieba.cut(query))
         scores = self._bm25.get_scores(tokens)
