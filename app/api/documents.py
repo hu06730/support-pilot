@@ -81,7 +81,6 @@ async def delete_document(doc_id: str):
     """删除指定文档及其所有分块。"""
     collection = _get_collection()
 
-    # 查找该 doc_id 对应的所有分块
     try:
         results = collection.get(include=["metadatas"])
     except Exception as e:
@@ -89,18 +88,19 @@ async def delete_document(doc_id: str):
         raise HTTPException(status_code=500, detail=f"数据库查询失败: {e}")
 
     ids_to_delete = []
-    source_to_delete = None
+    sources_to_delete = set()
 
     for chunk_id, meta in zip(results["ids"], results["metadatas"]):
         source = meta.get("source", "")
-        if doc_id in source:
+        # 精确匹配：doc_id 是 source 文件名的前缀部分
+        filename = Path(source).name
+        if filename.startswith(doc_id) or doc_id in filename:
             ids_to_delete.append(chunk_id)
-            source_to_delete = source
+            sources_to_delete.add(source)
 
     if not ids_to_delete:
         raise HTTPException(status_code=404, detail=f"未找到 doc_id={doc_id} 的文档")
 
-    # 从 Chroma 删除
     try:
         collection.delete(ids=ids_to_delete)
         logger.info("从 Chroma 删除 %d 个分块 (doc_id=%s)", len(ids_to_delete), doc_id)
@@ -108,12 +108,10 @@ async def delete_document(doc_id: str):
         logger.error("Chroma 删除失败: %s", e)
         raise HTTPException(status_code=500, detail=f"删除失败: {e}")
 
-    # 清除 BM25 缓存
     bm25_cache.invalidate(settings.chroma_collection_name)
 
-    # 删除原始文件
-    if source_to_delete:
-        file_path = Path(source_to_delete)
+    for source in sources_to_delete:
+        file_path = Path(source)
         if file_path.exists():
             try:
                 file_path.unlink()
@@ -126,3 +124,38 @@ async def delete_document(doc_id: str):
         "doc_id": doc_id,
         "deleted_chunks": len(ids_to_delete),
     }
+
+
+@router.delete("/documents")
+async def delete_all_documents():
+    """清空所有文档（用于修复旧数据残留）。"""
+    collection = _get_collection()
+
+    try:
+        results = collection.get(include=["metadatas"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"数据库查询失败: {e}")
+
+    if not results["ids"]:
+        return {"message": "没有文档需要删除", "deleted": 0}
+
+    # 删除所有分块
+    try:
+        collection.delete(ids=results["ids"])
+        logger.info("清空所有文档: %d 个分块", len(results["ids"]))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除失败: {e}")
+
+    # 清除 BM25 缓存
+    bm25_cache.invalidate(settings.chroma_collection_name)
+
+    # 删除所有上传的文件
+    upload_dir = Path(settings.chroma_persist_dir).parent / "uploads"
+    if upload_dir.exists():
+        for f in upload_dir.iterdir():
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    return {"message": "所有文档已清空", "deleted": len(results["ids"])}

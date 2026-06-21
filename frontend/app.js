@@ -14,15 +14,45 @@ const sessionId = "session-" + Math.random().toString(36).slice(2, 10);
 // 当前流式输出的元素
 let streamingDiv = null;
 
-// 智能滚动：只在用户已经在底部时自动滚动
-function isNearBottom() {
-    const threshold = 100; // 距离底部 100px 内算"在底部"
+// 用户是否手动滚动过（一旦手动滚动，停止自动滚动）
+let userScrolled = false;
+
+// 监听用户手动滚动
+chatHistory.addEventListener("scroll", () => {
+    // 如果用户滚动到距离底部 50px 以内，恢复自动滚动
+    if (isNearBottom(50)) {
+        userScrolled = false;
+    }
+});
+
+// 判断是否在底部
+function isNearBottom(threshold = 100) {
     return chatHistory.scrollTop + chatHistory.clientHeight >= chatHistory.scrollHeight - threshold;
 }
 
-function scrollToBottom() {
-    chatHistory.scrollTop = chatHistory.scrollHeight;
+// 智能滚动：只在用户没有手动滚动时自动滚动
+function autoScroll() {
+    if (!userScrolled) {
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
 }
+
+// 用户开始输入时重置滚动状态
+function resetScrollState() {
+    userScrolled = false;
+}
+
+// 监听用户拖动滚动条
+let scrollTimer = null;
+chatHistory.addEventListener("mousedown", () => {
+    // 用户点击滚动区域时，标记为手动滚动
+    scrollTimer = setTimeout(() => {
+        userScrolled = true;
+    }, 200);
+});
+chatHistory.addEventListener("mouseup", () => {
+    clearTimeout(scrollTimer);
+});
 
 // ── 发送消息 ──
 
@@ -30,10 +60,11 @@ async function sendMessage() {
     const message = userInput.value.trim();
     if (!message) return;
 
+    resetScrollState(); // 发送消息时重置滚动状态
     appendMessage("user", message);
     userInput.value = "";
     sendBtn.disabled = true;
-    streamingDiv = null; // 重置流式输出
+    streamingDiv = null;
 
     try {
         const response = await fetch("/chat", {
@@ -81,15 +112,11 @@ function handleSSEEvent(event, dataStr) {
 
     switch (event) {
         case "token":
-            // token 级流式：逐字追加到当前流式 div
             if (!streamingDiv) {
                 streamingDiv = appendMessage("assistant", "");
             }
             streamingDiv.textContent += data.content;
-            // 只在用户已经在底部时自动滚动，否则不干扰用户查看历史
-            if (isNearBottom()) {
-                scrollToBottom();
-            }
+            autoScroll(); // 智能滚动
             break;
 
         case "action":
@@ -102,7 +129,6 @@ function handleSSEEvent(event, dataStr) {
             break;
 
         case "answer":
-            // 最终回答（如果有 token 流式则覆盖为空，否则显示）
             if (!streamingDiv || streamingDiv.textContent.trim() === "") {
                 closeStreamingDiv();
                 appendMessage("assistant", data.output);
@@ -133,7 +159,7 @@ function appendMessage(type, content) {
     div.className = `message ${type}`;
     div.textContent = content;
     chatHistory.appendChild(div);
-    scrollToBottom();
+    autoScroll(); // 智能滚动
     return div;
 }
 
@@ -171,6 +197,12 @@ fileInput.addEventListener("change", async () => {
     }
 
     fileInput.value = "";
+
+    // 5 秒后自动隐藏提示
+    setTimeout(() => {
+        uploadStatus.textContent = "";
+        uploadStatus.className = "";
+    }, 5000);
 });
 
 // ── 快捷键 ──
@@ -226,7 +258,7 @@ async function deleteDocument(docId) {
         const data = await resp.json();
 
         if (resp.ok) {
-            loadDocuments(); // 刷新列表
+            loadDocuments();
         } else {
             alert(`删除失败: ${data.detail || "未知错误"}`);
         }
@@ -242,7 +274,6 @@ async function clearHistory() {
 
     try {
         await fetch(`/history/${sessionId}`, { method: "DELETE" });
-        // 清空前端聊天区域（保留系统消息）
         const messages = chatHistory.querySelectorAll(".message:not(.system)");
         messages.forEach(m => m.remove());
     } catch (err) {
