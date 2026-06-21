@@ -15,11 +15,11 @@ COPY pyproject.toml poetry.lock* ./
 RUN poetry config virtualenvs.create false && \
     poetry install --no-interaction --no-ansi --only main || \
     pip install --no-cache-dir \
-        fastapi uvicorn pydantic pydantic-settings \
+        fastapi uvicorn[standard] pydantic pydantic-settings \
         langchain langchain-openai langchain-community langchain-text-splitters \
         mcp langchain-mcp-adapters \
-        chromadb pypdf tiktoken openai \
-        python-dotenv sse-starlette aiofiles httpx
+        chromadb pypdf tiktoken openai pymupdf python-docx jieba rank-bm25 \
+        python-jose[cryptography] python-dotenv sse-starlette aiofiles httpx
 
 # 应用代码
 COPY app/ ./app/
@@ -27,7 +27,7 @@ COPY mcp_server/ ./mcp_server/
 COPY frontend/ ./frontend/
 
 # 数据目录
-RUN mkdir -p data/uploads data/chroma
+RUN mkdir -p data/uploads data/chroma data/bm25_cache
 
 EXPOSE 8000
 
