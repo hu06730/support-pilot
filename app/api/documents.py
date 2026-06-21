@@ -45,7 +45,8 @@ async def list_documents():
     for meta, doc_text in zip(results["metadatas"], results["documents"]):
         source = meta.get("source", "unknown")
         if source not in docs_map:
-            filename = Path(source).name
+            # 兼容 Windows 和 Linux 路径分隔符
+            filename = source.replace("\\", "/").split("/")[-1]
             doc_id = filename.split("_")[0] if "_" in filename else filename
             original_name = filename.split("_", 1)[1] if "_" in filename else filename
             docs_map[source] = {
@@ -92,8 +93,8 @@ async def delete_document(doc_id: str):
 
     for chunk_id, meta in zip(results["ids"], results["metadatas"]):
         source = meta.get("source", "")
-        # 精确匹配：doc_id 是 source 文件名的前缀部分
-        filename = Path(source).name
+        # 兼容 Windows 和 Linux 路径分隔符
+        filename = source.replace("\\", "/").split("/")[-1]
         if filename.startswith(doc_id) or doc_id in filename:
             ids_to_delete.append(chunk_id)
             sources_to_delete.add(source)
