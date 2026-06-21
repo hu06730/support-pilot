@@ -170,20 +170,14 @@ function truncate(str, maxLen) {
 
 // ── 文件上传 ──
 
-const uploadCloseBtn = document.getElementById("upload-close");
-
 function showUploadStatus(text, type) {
     uploadStatus.textContent = text;
     uploadStatus.className = type;
-    uploadCloseBtn.style.display = "inline";
     // 5 秒后自动隐藏
-    setTimeout(clearUploadStatus, 5000);
-}
-
-function clearUploadStatus() {
-    uploadStatus.textContent = "";
-    uploadStatus.className = "";
-    uploadCloseBtn.style.display = "none";
+    setTimeout(() => {
+        uploadStatus.textContent = "";
+        uploadStatus.className = "";
+    }, 5000);
 }
 
 fileInput.addEventListener("change", async () => {
