@@ -170,12 +170,27 @@ function truncate(str, maxLen) {
 
 // ── 文件上传 ──
 
+const uploadCloseBtn = document.getElementById("upload-close");
+
+function showUploadStatus(text, type) {
+    uploadStatus.textContent = text;
+    uploadStatus.className = type;
+    uploadCloseBtn.style.display = "inline";
+    // 5 秒后自动隐藏
+    setTimeout(clearUploadStatus, 5000);
+}
+
+function clearUploadStatus() {
+    uploadStatus.textContent = "";
+    uploadStatus.className = "";
+    uploadCloseBtn.style.display = "none";
+}
+
 fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
     if (!file) return;
 
-    uploadStatus.textContent = "上传中...";
-    uploadStatus.className = "";
+    showUploadStatus("上传中...", "");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -185,24 +200,15 @@ fileInput.addEventListener("change", async () => {
         const result = await resp.json();
 
         if (resp.ok) {
-            uploadStatus.textContent = `✅ ${result.filename} — ${result.chunks} 个分块已索引`;
-            uploadStatus.className = "success";
+            showUploadStatus(`✅ ${result.filename} — ${result.chunks} 个分块已索引`, "success");
         } else {
-            uploadStatus.textContent = `❌ ${result.detail || "上传失败"}`;
-            uploadStatus.className = "error";
+            showUploadStatus(`❌ ${result.detail || "上传失败"}`, "error");
         }
     } catch (err) {
-        uploadStatus.textContent = `❌ 网络错误: ${err.message}`;
-        uploadStatus.className = "error";
+        showUploadStatus(`❌ 网络错误: ${err.message}`, "error");
     }
 
     fileInput.value = "";
-
-    // 5 秒后自动隐藏提示
-    setTimeout(() => {
-        uploadStatus.textContent = "";
-        uploadStatus.className = "";
-    }, 5000);
 });
 
 // ── 快捷键 ──
