@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator
 
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, AIMessageChunk
 
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -45,7 +46,11 @@ async def stream_agent_run(
 
     try:
         # 使用 astream_events 获取 token 级流式输出
-        async for event in agent.astream_events(input_msg, version="v2"):
+        async for event in agent.astream_events(
+            input_msg,
+            version="v2",
+            recursion_limit=settings.agent_max_iterations,
+        ):
             kind = event.get("event", "")
 
             # LLM 生成的 token
